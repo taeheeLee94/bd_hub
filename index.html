@@ -1,97 +1,834 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>건축물대장 조회 서비스 - bd_hub</title>
-    <style>
-        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; line-height: 1.6; max-width: 700px; margin: auto; }
-        .search-container { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #dee2e6; }
-        #address-display { font-weight: bold; color: #007bff; margin: 10px 0; }
-        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
-        .btn:hover { background: #0056b3; }
-        #result-area { border: 1px solid #dee2e6; padding: 20px; border-radius: 10px; min-height: 150px; }
-        .info-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .info-table th, .info-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        .info-table th { background-color: #f2f2f2; width: 30%; }
-        .error { color: #dc3545; font-weight: bold; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>스마트 건축물대장 - 총괄표제부(갑) 기준</title>
+  <style>
+    :root{
+      --line:#000; --thin:1px; --pad:6px; --font:12px;
+      --blue:#1a73e8; --bg:#f4f7f9;
+    }
+    body{ font-family:'Malgun Gothic',sans-serif; background:var(--bg); margin:0; padding:20px; }
+    .wrap{ max-width:1100px; margin:0 auto; background:#fff; border-radius:12px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    h1{ margin:0 0 12px; text-align:center; color:var(--blue); font-size:22px; }
+
+    /* UI */
+    .search-box{ text-align:center; padding:14px; border:2px solid #e8f0fe; border-radius:10px; margin-bottom:14px; }
+    .btn{ background:var(--blue); color:#fff; border:none; padding:12px 30px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:700; }
+    .btn:active{ background:#1557b0; transform:scale(.98); }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+    #addr-display{ margin-top:10px; font-weight:700; color:var(--blue); }
+    #search-layer{ display:none; border:2px solid #333; width:100%; height:460px; margin:10px 0 14px; position:relative; background:#fff; z-index:100; border-radius:8px; overflow:hidden; }
+    .close-btn{ position:absolute; right:10px; top:10px; background:#333; color:#fff; border:none; padding:8px 12px; cursor:pointer; border-radius:6px; z-index:101; }
+    #log-window{ background:#1e1e1e; color:#00ff00; padding:12px; border-radius:8px; font-family:Consolas, monospace; font-size:11px; height:170px; overflow-y:auto; margin-top:14px; }
+    .log-entry{ margin-bottom:4px; border-bottom:1px solid #333; padding-bottom:4px; }
+    .warn{ background:#fff7e6; color:#8a5a00; border:1px solid #ffe1a6; padding:10px; border-radius:10px; margin:12px 0; }
+    .err{ background:#ffecec; color:#9c1a1a; border:1px solid #ffbcbc; padding:10px; border-radius:10px; margin:12px 0; }
+
+    .form-actions{ display:flex; justify-content:flex-end; gap:8px; margin:10px 0; }
+    .print-btn{ background:#34a853; }
+    .ghost{ background:#6c757d; }
+
+    /* A4 서식(가로) */
+    .form-a4{
+      width: 297mm; min-height: 210mm; margin: 0 auto;
+      background:#fff; border: var(--thin) solid var(--line);
+      padding: 6mm; box-sizing:border-box; overflow:hidden;
+    }
+    .form-title{ text-align:center; font-weight:800; font-size:16px; margin:0 0 6px; }
+    .top-meta{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin:2px 0 6px; font-size:11px; }
+    .small{ font-size:11px; }
+    .muted{ color:#666; }
+
+    table.form{
+      width:100%; border-collapse:collapse; table-layout:fixed;
+      font-size:var(--font);
+    }
+    table.form td, table.form th{
+      border: var(--thin) solid var(--line);
+      padding: var(--pad);
+      vertical-align:middle;
+      word-break:break-word;
+    }
+    .lbl{ font-weight:700; background:#fff; }
+    .center{ text-align:center; }
+    .right{ text-align:right; }
+
+    .section-head{
+      margin:10px 0 4px;
+      font-weight:800; font-size:13px;
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+    }
+
+    /* filter 버튼 */
+    .filter-box{ display:flex; gap:6px; flex-wrap:wrap; }
+    .fbtn{
+      background:#fff; border:1px solid #bbb; padding:4px 10px; border-radius:8px;
+      cursor:pointer; font-size:12px; font-weight:700; color:#333;
+    }
+    .fbtn.active{
+      border-color: var(--blue); color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(26,115,232,.15) inset;
+    }
+
+    @page { size: A4 landscape; margin: 8mm; }
+    @media print{
+      body{ background:#fff; padding:0; }
+      .wrap{ box-shadow:none; border-radius:0; padding:0; }
+      .search-box, #search-layer, #log-window, .form-actions, .btn, .close-btn, h1 { display:none !important; }
+      .filter-box{ display:none !important; }
+    }
+  </style>
 </head>
 <body>
-    <h1>🏢 건축물대장 조회</h1>
-    <p>도로명주소와 지번주소 모두 검색 가능합니다.</p>
+<div class="wrap">
+  <h1>🏢 스마트 건축물대장 조회 (총괄표제부(갑) 기준)</h1>
 
-    <div class="search-container">
-        <button class="btn" onclick="execDaumPostcode()">주소 검색하기</button>
-        <div id="address-display">검색된 주소가 여기에 표시됩니다.</div>
+  <div class="search-box">
+    <button class="btn" onclick="startSearch()">🔍 주소 검색 시작</button>
+    <div id="addr-display">주소를 선택해 주세요.</div>
+    <div class="small muted" style="margin-top:8px;">
+      ※ 상단 요약값은 “총괄표제부(갑)” 기준으로 표시합니다. (getBrRecapTitleInfo 우선)
     </div>
+  </div>
 
-    <div id="result-area">
-        <p>조회 결과가 여기에 표시됩니다.</p>
-    </div>
+  <div id="search-layer"><button class="close-btn" onclick="closeSearch()">닫기 X</button></div>
 
-    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-    <script>
-        // 이태희님이 제공해주신 Encoding 인증키
-        const SERVICE_KEY = 'qxYCqkstCZ8XGIddZD07gVxLSNV8Ivpcp4QNatFfp4nS3lmhVB4kg1F4%2BPoFnHGjlKViFlvHtKGzNpcR4WIHbw%3D%3D';
+  <div class="form-actions">
+    <button class="btn ghost" onclick="collapseAll()">접기/펼치기</button>
+    <button class="btn print-btn" onclick="window.print()">PDF 저장(인쇄)</button>
+  </div>
 
-        function execDaumPostcode() {
-            new daum.Postcode({
-                oncomplete: function(data) {
-                    // 주소 표시
-                    document.getElementById('address-display').innerText = "📍 " + data.address;
-                    // 건축물대장 API 호출 시작
-                    fetchBuildingInfo(data);
-                }
-            }).open();
+  <div id="result-container"></div>
+
+  <div id="log-window"><div class="log-entry">시스템 준비 완료. [recap-first]</div></div>
+</div>
+
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script>
+  const KEY  = 'qxYCqkstCZ8XGIddZD07gVxLSNV8Ivpcp4QNatFfp4nS3lmhVB4kg1F4%2BPoFnHGjlKViFlvHtKGzNpcR4WIHbw%3D%3D';
+  const BASE = 'https://apis.data.go.kr/1613000/BldRgstHubService';
+
+  let saved = null;
+  let collapsed = false;
+
+  let cachedData = null;
+  let pubuseFilter = 'ALL'; // ALL | PRIVATE | PUBLIC
+
+  function addLog(msg, color='#00ff00'){
+    const entry=document.createElement('div');
+    entry.className='log-entry';
+    entry.style.color=color;
+    entry.innerText=`[${new Date().toLocaleTimeString()}] ${msg}`;
+    document.getElementById('log-window').prepend(entry);
+  }
+  function closeSearch(){ document.getElementById('search-layer').style.display='none'; }
+
+  function escapeHtml(str){
+    return String(str ?? '')
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function parseJibun(jibunAddress){
+    const s=(jibunAddress||'').trim();
+    if(!s) return {ok:false};
+
+    let m=s.match(/산\s*([0-9]{1,4})(?:-([0-9]{1,4}))?\s*$/);
+    if(m){
+      return {
+        ok:true, platGbCd:'1',
+        bun:String(parseInt(m[1],10)).padStart(4,'0'),
+        ji:String(parseInt(m[2]||'0',10)).padStart(4,'0')
+      };
+    }
+    m=s.match(/([0-9]{1,4})(?:-([0-9]{1,4}))?\s*$/);
+    if(m){
+      return {
+        ok:true, platGbCd:'0',
+        bun:String(parseInt(m[1],10)).padStart(4,'0'),
+        ji:String(parseInt(m[2]||'0',10)).padStart(4,'0')
+      };
+    }
+    return {ok:false};
+  }
+
+  function renderWarn(msg){
+    document.getElementById('result-container').innerHTML = `<div class="warn">⚠️ ${escapeHtml(msg)}</div>`;
+  }
+  function renderError(msg){
+    document.getElementById('result-container').innerHTML = `<div class="err">❌ ${escapeHtml(msg)}</div>`;
+  }
+
+  async function fetchJson(url){
+    const res = await fetch(url, {method:'GET'});
+    const text = await res.text();
+    try{ return JSON.parse(text); }
+    catch(e){
+      throw new Error("응답이 JSON이 아닙니다. (CORS/서비스키/서버 오류 가능)\n" + text.slice(0,300));
+    }
+  }
+  function normItems(json){
+    const item = json?.response?.body?.items?.item;
+    if(!item) return [];
+    return Array.isArray(item) ? item : [item];
+  }
+  function pick(v, suffix=''){
+    if(v === null || v === undefined || v === '') return '-';
+    return String(v) + suffix;
+  }
+  function sumNums(arr, key){
+    let s=0;
+    for(const o of arr){
+      const n = Number(o?.[key]);
+      if(Number.isFinite(n)) s += n;
+    }
+    return s;
+  }
+  function collapseAll(){
+    collapsed = !collapsed;
+    document.querySelectorAll('[data-collapsible="1"]').forEach(el=>{
+      el.style.display = collapsed ? 'none' : '';
+    });
+  }
+
+  // ------- 정렬/파싱 -------
+  function floorSortKey(obj){
+    const gb = String(obj?.flrGbCdNm || obj?.flrGbNm || obj?.flrGbCd || '').trim();
+    const noRaw = (obj?.flrNoNm ?? obj?.flrNo ?? '').toString().trim();
+
+    const noNum = Number(noRaw);
+    if(Number.isFinite(noNum) && noRaw !== ''){
+      if((gb.includes('지하') || gb.toLowerCase().includes('ug')) && noNum > 0) return -noNum;
+      return noNum;
+    }
+    const m = noRaw.match(/-?\d+/);
+    const n = m ? Number(m[0]) : 0;
+    if(gb.includes('지하')) return -Math.abs(n || 0);
+    return Math.abs(n || 0);
+  }
+  function floorLabel(key){
+    if(key < 0) return `지하 ${Math.abs(key)}층`;
+    if(key === 0) return `0층`;
+    return key === 1 ? `지상 1층` : `${key}층`;
+  }
+  function pubuseKind(row){
+    const nm = String(row?.exposPubuseGbCdNm || row?.exposPubuseGbNm || '').trim();
+    const cd = String(row?.exposPubuseGbCd || '').trim();
+    const hay = (nm + ' ' + cd).toLowerCase();
+    if(hay.includes('전유') || hay.includes('private')) return 'PRIVATE';
+    if(hay.includes('공용') || hay.includes('public')) return 'PUBLIC';
+    return 'UNKNOWN';
+  }
+  function parseHo(hoStr){
+    const s = String(hoStr ?? '').trim();
+    const digits = s.match(/\d+/g);
+    if(!digits) return { ok:false };
+    const num = Number(digits.join(''));
+    if(!Number.isFinite(num)) return { ok:false };
+    const floor = Math.floor(num / 100);
+    const unit = num % 100;
+    return { ok:true, num, floor, unit };
+  }
+  function parseDateLoose(s){
+    const str = String(s ?? '').trim();
+    if(!str) return null;
+    if(/^\d{8}$/.test(str)){
+      const y=str.slice(0,4), m=str.slice(4,6), d=str.slice(6,8);
+      const dt = new Date(`${y}-${m}-${d}T00:00:00`);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+    const t = str.replaceAll('.', '-');
+    const dt = new Date(`${t}T00:00:00`);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  function formatNumberComma(v){
+    const n = Number(String(v).replaceAll(',','').trim());
+    if(!Number.isFinite(n)) return '-';
+    return new Intl.NumberFormat('ko-KR').format(n);
+  }
+  function pickAreaField(row){
+    const candidates = [
+      'area','prvuseArea','prvuseAr','prvArea','privateArea',
+      'spc','spcArea','supplyArea','suplyArea','supplyAr'
+    ];
+    for(const k of candidates){
+      if(row && row[k] !== undefined && row[k] !== null && row[k] !== ''){
+        return String(row[k]);
+      }
+    }
+    return '-';
+  }
+
+  // ------- 주소 검색 -------
+  function startSearch(){
+    addLog("주소검색 버튼 클릭.");
+    if(typeof daum==='undefined' || !daum.Postcode){
+      addLog("에러: daum.Postcode 로드 실패.", "#ea4335");
+      alert("주소 서비스가 준비되지 않았습니다. 새로고침 후 다시 시도하세요.");
+      return;
+    }
+
+    const layer=document.getElementById('search-layer');
+    layer.style.display='block';
+
+    new daum.Postcode({
+      oncomplete: function(data){
+        const jibun = data.jibunAddress || data.autoJibunAddress || "";
+        const addressToShow = data.address || jibun || "(주소 없음)";
+        document.getElementById('addr-display').innerText = "📍 " + addressToShow;
+
+        const bcode=(data.bcode||'').trim();
+        if(bcode.length < 10){
+          addLog(`에러: bcode 비정상. bcode="${bcode}"`, "#ea4335");
+          renderError("법정동코드(bcode)가 비정상이라 조회 파라미터를 만들 수 없습니다.");
+          closeSearch();
+          return;
+        }
+        const sigunguCd=bcode.substring(0,5);
+        const bjdongCd=bcode.substring(5,10);
+
+        const parsed=parseJibun(jibun);
+        if(!parsed.ok){
+          addLog(`경고: 지번 파싱 실패. jibun="${jibun}"`, "#ffcc00");
+          renderWarn("지번주소(예: 'OO동 123-45')를 파싱하지 못했습니다. 지번주소가 포함되도록 주소를 선택해 주세요.");
+          closeSearch();
+          return;
         }
 
-        async function fetchBuildingInfo(addrData) {
-            const resultArea = document.getElementById('result-area');
-            resultArea.innerHTML = "<p>⏳ 데이터를 불러오는 중입니다...</p>";
+        saved={ daum:data, sigunguCd, bjdongCd, platGbCd:parsed.platGbCd, bun:parsed.bun, ji:parsed.ji, jibunAddress:jibun };
+        addLog(`파라미터 OK: sigunguCd=${sigunguCd}, bjdongCd=${bjdongCd}, platGbCd=${saved.platGbCd}, bun=${saved.bun}, ji=${saved.ji}`);
 
-            // 1. 파라미터 준비 [cite: 28, 33]
-            // sigunguCd: 시군구코드(5자리), bjdongCd: 법정동코드(5자리)
-            const sigunguCd = addrData.sigunguCode;
-            const bjdongCd = addrData.bjdongCode;
-            const bun = addrData.bun.padStart(4, '0'); // 번(4자리 맞춤) [cite: 21]
-            const ji = addrData.ji.padStart(4, '0');   // 지(4자리 맞춤) [cite: 21]
+        pubuseFilter = 'ALL';
+        cachedData = null;
+        fetchAll();
+        closeSearch();
+      },
+      width:'100%',
+      height:'100%'
+    }).embed(layer);
+  }
 
-            // 2. 건축HUB 표제부 조회 URL 구성
-            const url = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${SERVICE_KEY}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&_type=json`;
+  // ------- 전체 조회 -------
+  async function fetchAll(){
+    if(!saved) return;
+    const rc = document.getElementById('result-container');
+    rc.innerHTML = "<p style='text-align:center;'>⏳ 전체 API 조회 중...</p>";
 
-            try {
-                const response = await fetch(url);
-                const json = await response.json();
+    const baseParams =
+      `serviceKey=${KEY}` +
+      `&sigunguCd=${saved.sigunguCd}` +
+      `&bjdongCd=${saved.bjdongCd}` +
+      `&platGbCd=${saved.platGbCd}` +
+      `&bun=${saved.bun}` +
+      `&ji=${saved.ji}` +
+      `&_type=json`;
 
-                // 3. 데이터 유무 확인 및 결과 처리
-                const items = json.response.body.items;
+    try{
+      addLog("10개 API 병렬 조회 시작...");
 
-                if (!items || items === "") {
-                    resultArea.innerHTML = "<p class='error'>❌ 해당 주소에 등록된 건축물대장 정보를 찾을 수 없습니다. (신축 건물이거나 주소가 정확하지 않을 수 있습니다.)</p>";
-                    return;
-                }
+      const urls = {
+        basis: `${BASE}/getBrBasisOulnInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        recap: `${BASE}/getBrRecapTitleInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        title: `${BASE}/getBrTitleInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        flr:   `${BASE}/getBrFlrOulnInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        atch:  `${BASE}/getBrAtchJibunInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        pubuse:`${BASE}/getBrExposPubuseAreaInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        wclf:  `${BASE}/getBrWclfInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        hsprc: `${BASE}/getBrHsprcInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        expos: `${BASE}/getBrExposInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+        jijigu:`${BASE}/getBrJijiguInfo?${baseParams}&numOfRows=1000&pageNo=1`,
+      };
 
-                const item = Array.isArray(items.item) ? items.item[0] : items.item;
+      const [
+        basisJ, recapJ, titleJ, flrJ, atchJ, pubuseJ, wclfJ, hsprcJ, exposJ, jijiguJ
+      ] = await Promise.all([
+        fetchJson(urls.basis),
+        fetchJson(urls.recap),
+        fetchJson(urls.title),
+        fetchJson(urls.flr),
+        fetchJson(urls.atch),
+        fetchJson(urls.pubuse),
+        fetchJson(urls.wclf),
+        fetchJson(urls.hsprc),
+        fetchJson(urls.expos),
+        fetchJson(urls.jijigu),
+      ]);
 
-                // 4. 보기 좋게 정리해서 보여주기
-                resultArea.innerHTML = `
-                    <h3>✅ 조회 성공: ${item.bldNm || '건물명 없음'}</h3>
-                    <table class="info-table">
-                        <tr><th>대지위치</th><td>${item.platPlc}</td></tr>
-                        <tr><th>도로명주소</th><td>${item.newPlatPlc || '-'}</td></tr>
-                        <tr><th>주용도</th><td>${item.mainPurpsCdNm}</td></tr>
-                        <tr><th>구조</th><td>${item.strctCdNm}</td></tr>
-                        <tr><th>층수</th><td>지상 ${item.grndFlrCnt}층 / 지하 ${item.ugrndFlrCnt}층</td></tr>
-                        <tr><th>연면적</th><td>${item.totArea} ㎡</td></tr>
-                        <tr><th>사용승인일</th><td>${item.useAprDay || '정보 없음'}</td></tr>
-                    </table>
-                `;
-            } catch (error) {
-                resultArea.innerHTML = "<p class='error'>⚠️ API 호출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>";
-                console.error(error);
-            }
+      const data = {
+        basis: normItems(basisJ),
+        recap: normItems(recapJ),
+        title: normItems(titleJ),
+        flr:   normItems(flrJ),
+        atch:  normItems(atchJ),
+        pubuse:normItems(pubuseJ),
+        wclf:  normItems(wclfJ),
+        hsprc: normItems(hsprcJ),
+        expos: normItems(exposJ),
+        jijigu:normItems(jijiguJ),
+      };
+
+      // 총괄표제부(갑)과 “같은 값”을 목표로 하므로 recap이 없으면 경고
+      if(data.recap.length === 0){
+        addLog("총괄표제부(getBrRecapTitleInfo) 결과 없음.", "#ffcc00");
+        renderWarn("총괄표제부(갑) 결과가 없습니다. (이 주소는 총괄표제부가 없을 수 있음) 그래도 표제부 등은 표시합니다.");
+      }
+
+      // 정렬
+      data.flr.sort((a,b)=> floorSortKey(a) - floorSortKey(b));
+
+      data.pubuse.sort((a,b)=>{
+        const ka = floorSortKey(a);
+        const kb = floorSortKey(b);
+        if(ka !== kb) return ka - kb;
+        return String(a?.exposPubuseGbCdNm||'').localeCompare(String(b?.exposPubuseGbCdNm||''), 'ko');
+      });
+
+      data.expos.sort((a,b)=>{
+        const pa = parseHo(a?.hoNm || a?.hoNo || a?.unitNm || '');
+        const pb = parseHo(b?.hoNm || b?.hoNo || b?.unitNm || '');
+        if(pa.ok && pb.ok){
+          if(pa.floor !== pb.floor) return pa.floor - pb.floor;
+          if(pa.num !== pb.num) return pa.num - pb.num;
+          return String(a?.dongNm||'').localeCompare(String(b?.dongNm||''), 'ko');
         }
-    </script>
+        if(pa.ok && !pb.ok) return -1;
+        if(!pa.ok && pb.ok) return 1;
+        return String(a?.hoNm||a?.hoNo||'').localeCompare(String(b?.hoNm||b?.hoNo||''), 'ko');
+      });
+
+      data.hsprc.sort((a,b)=>{
+        const da = parseDateLoose(a?.stdDay || a?.baseDay || a?.applcDay);
+        const db = parseDateLoose(b?.stdDay || b?.baseDay || b?.applcDay);
+        if(da && db) return da.getTime() - db.getTime();
+        if(da && !db) return -1;
+        if(!da && db) return 1;
+        return String(a?.stdDay||'').localeCompare(String(b?.stdDay||''), 'ko');
+      });
+
+      // “건축물 현황(을)”을 공식처럼 보이게: 표제부 item 전체를 bldNm(주1/부1 등) 기준으로 정렬
+      data.title.sort((a,b)=>{
+        const an = String(a?.bldNm || a?.dongNm || '').trim();
+        const bn = String(b?.bldNm || b?.dongNm || '').trim();
+        // 주/부 순서: "주" 먼저
+        const aIsBu = an.startsWith('부');
+        const bIsBu = bn.startsWith('부');
+        if(aIsBu !== bIsBu) return aIsBu ? 1 : -1;
+        // 숫자 정렬: 주1, 주2...
+        const am = an.match(/\d+/); const bm = bn.match(/\d+/);
+        const ai = am ? Number(am[0]) : 9999;
+        const bi = bm ? Number(bm[0]) : 9999;
+        if(ai !== bi) return ai - bi;
+        return an.localeCompare(bn,'ko');
+      });
+
+      cachedData = data;
+
+      addLog(`조회 완료: recap=${data.recap.length}, title=${data.title.length}, flr=${data.flr.length}, pubuse=${data.pubuse.length}, expos=${data.expos.length}, hsprc=${data.hsprc.length}`);
+      renderAll();
+
+    }catch(e){
+      addLog(`에러: ${e.message}`, "#ea4335");
+      renderError(e.message);
+    }
+  }
+
+  // 필터 변경 후 재렌더
+  function setPubuseFilter(kind){
+    pubuseFilter = kind;
+    renderAll();
+    document.querySelectorAll('[data-pubuse-filter]').forEach(b=>{
+      b.classList.toggle('active', b.getAttribute('data-pubuse-filter') === kind);
+    });
+  }
+
+  // ------- 렌더링(핵심: recap 우선) -------
+  function renderAll(){
+    const data = cachedData;
+    if(!data){ renderWarn("데이터가 없습니다."); return; }
+
+    // ✅ 핵심: 상단 요약은 “총괄표제부(갑)” 기준(= recap)으로 고정
+    const recap = data.recap[0] || {};
+    // fallback은 존재만 하도록
+    const titleFallback = data.title[0] || {};
+    const basisFallback = data.basis[0] || {};
+
+    const bldName = (recap?.bldNm || recap?.dongNm || titleFallback?.bldNm || basisFallback?.bldNm || '-');
+    const platPlc = (recap?.platPlc || titleFallback?.platPlc || basisFallback?.platPlc || saved?.jibunAddress || '-');
+
+    const platArea = pick(recap?.platArea ?? titleFallback?.platArea ?? basisFallback?.platArea, '㎡');
+    const totArea  = pick(recap?.totArea  ?? titleFallback?.totArea  ?? basisFallback?.totArea,  '㎡');
+    const archArea = pick(recap?.archArea ?? titleFallback?.archArea ?? basisFallback?.archArea, '㎡');
+    const bcRat    = pick(recap?.bcRat    ?? titleFallback?.bcRat    ?? basisFallback?.bcRat,    '%');
+    const vlRat    = pick(recap?.vlRat    ?? titleFallback?.vlRat    ?? basisFallback?.vlRat,    '%');
+
+    const vlRatEstmTotArea = pick(recap?.vlRatEstmTotArea ?? titleFallback?.vlRatEstmTotArea ?? '-', '㎡'); // 없으면 -
+    const useApr   = pick(recap?.useAprDay ?? titleFallback?.useAprDay ?? basisFallback?.useAprDay);
+    const mainPurp = pick(recap?.mainPurpsCdNm ?? titleFallback?.mainPurpsCdNm ?? basisFallback?.mainPurpsCdNm);
+    const zone     = pick(recap?.jijiguNm ?? recap?.etcJijigu ?? '-');
+    const heit     = pick(recap?.heit ?? titleFallback?.heit ?? basisFallback?.heit, 'm');
+
+    const hhld = (recap?.hhldCnt ?? recap?.fmlyCnt ?? recap?.hoCnt ?? titleFallback?.hhldCnt ?? '-'); // 세대수 계열
+    const bldCnt = (recap?.bldCnt ?? recap?.bldgCnt ?? recap?.totBldCnt ?? '-'); // 건축물 수 계열(없으면 -)
+
+    const pk = (recap?.mgmBldrgstPk || recap?.bldId || titleFallback?.mgmBldrgstPk || '-');
+    const uniq = (recap?.regstrGbCd ? `${recap.regstrGbCd}` : '-'); // 고유번호는 API 필드가 확실치 않아 일단 '-' (있으면 표시)
+
+    const keyLine = `sigunguCd=${saved.sigunguCd}, bjdongCd=${saved.bjdongCd}, platGbCd=${saved.platGbCd}, bun=${saved.bun}, ji=${saved.ji}`;
+
+    // --- “건축물 현황(을)” : getBrTitleInfo item 전체 출력 (주/부 포함) ---
+    const titleRows = data.title.map(t=>{
+      const nm = t?.bldNm || t?.dongNm || '-'; // 주1/부1 등 들어오는 경우가 많음
+      const addr = t?.newPlatPlc || t?.platPlc || platPlc || '-';
+      const strct = t?.strctCdNm || '-';
+      const roof  = t?.roofCdNm || '-';
+      const flr   = `${pick(t?.ugrndFlrCnt, '')}/${pick(t?.grndFlrCnt, '')}`.replaceAll('-', '');
+      const purp  = t?.mainPurpsCdNm || '-';
+      const area  = (t?.totArea !== undefined && t?.totArea !== null && t?.totArea !== '') ? String(t.totArea) : '-';
+      const chgDay= t?.pmsDay || t?.useAprDay || t?.crtnDay || '-';   // 변동일 후보
+      const chgRs = t?.pmsKndCdNm || t?.etcPurps || t?.rm || '-';     // 변동원인 후보(정확히는 API에 없을 수 있음)
+
+      // 구분(주/부): 명칭이 "주"로 시작하면 주, "부"면 부, 아니면 '-'
+      const g = (String(nm).startsWith('부') ? '부' : (String(nm).startsWith('주') ? '주' : '-'));
+
+      return `
+        <tr>
+          <td class="center">${escapeHtml(g)}</td>
+          <td>${escapeHtml(nm)}</td>
+          <td>${escapeHtml(addr)}</td>
+          <td class="center">${escapeHtml(strct)}</td>
+          <td class="center">${escapeHtml(roof)}</td>
+          <td class="center">${escapeHtml(flr)}</td>
+          <td class="center">${escapeHtml(purp)}</td>
+          <td class="right">${escapeHtml(area)}</td>
+          <td class="center">${escapeHtml(chgDay)}</td>
+          <td class="center">${escapeHtml(chgRs)}</td>
+        </tr>
+      `;
+    }).join('') || `<tr><td colspan="10" class="center">-</td></tr>`;
+
+    // --- 전유/공용면적 필터 + 합계 ---
+    const pubuseFiltered = data.pubuse.filter(r=>{
+      const k = pubuseKind(r);
+      if(pubuseFilter === 'ALL') return true;
+      if(pubuseFilter === 'PRIVATE') return k === 'PRIVATE';
+      if(pubuseFilter === 'PUBLIC') return k === 'PUBLIC';
+      return true;
+    });
+    const pubuseTot = sumNums(pubuseFiltered, 'area');
+    const pubuseRows = pubuseFiltered.map(p => `
+      <tr>
+        <td class="center">${escapeHtml(pick(p?.exposPubuseGbCdNm || p?.exposPubuseGbCd))}</td>
+        <td class="center">${escapeHtml(floorLabel(floorSortKey(p)))}</td>
+        <td class="center">${escapeHtml(pick(p?.mainPurpsCdNm))}</td>
+        <td class="right">${escapeHtml(pick(p?.area))}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="4" class="center">-</td></tr>`;
+
+    // --- 전유부(호 정렬됨) ---
+    const exposRows = data.expos.map(e => {
+      const ho = e?.hoNm || e?.hoNo || e?.unitNm || '-';
+      const ph = parseHo(ho);
+      const floorGuess = ph.ok ? `${ph.floor}층` : '-';
+      return `
+        <tr>
+          <td class="center">${escapeHtml(pick(e?.dongNm))}</td>
+          <td class="center">${escapeHtml(pick(ho))}</td>
+          <td class="center">${escapeHtml(floorGuess)}</td>
+          <td class="center">${escapeHtml(pick(e?.mainPurpsCdNm))}</td>
+          <td class="right">${escapeHtml(pick(e?.area))}</td>
+        </tr>
+      `;
+    }).join('') || `<tr><td colspan="5" class="center">-</td></tr>`;
+
+    // --- 주택가격(날짜 정렬 + 콤마) ---
+    const hsprcRows = data.hsprc.map(h => {
+      const day = h?.stdDay || h?.baseDay || h?.applcDay || '-';
+      const priceRaw = h?.hsprc || h?.housePc || h?.price || '-';
+      const price = (priceRaw === '-' ? '-' : formatNumberComma(priceRaw));
+      const area = pickAreaField(h);
+      const rm = h?.rm || h?.etc || '-';
+      return `
+        <tr>
+          <td class="center">${escapeHtml(pick(day))}</td>
+          <td class="center">${escapeHtml(pick(area))}</td>
+          <td class="right">${escapeHtml(price)}</td>
+          <td>${escapeHtml(pick(rm))}</td>
+        </tr>
+      `;
+    }).join('') || `<tr><td colspan="4" class="center">-</td></tr>`;
+
+    // --- 지역지구구역 ---
+    const jijiguRows = data.jijigu.map(j => `
+      <tr>
+        <td>${escapeHtml(pick(j?.jijiguNm || j?.etcJijigu || j?.etcJijiguNm))}</td>
+        <td>${escapeHtml(pick(j?.jijiguCdNm || j?.jijiguGbCdNm || j?.jijiguCd))}</td>
+        <td>${escapeHtml(pick(j?.regstrGbCdNm || j?.etc))}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="3" class="center">-</td></tr>`;
+
+    // --- 층별개요 ---
+    const floorRows = data.flr.map(f => `
+      <tr>
+        <td class="center">${escapeHtml(floorLabel(floorSortKey(f)))}</td>
+        <td class="center">${escapeHtml(pick(f?.mainPurpsCdNm))}</td>
+        <td class="right">${escapeHtml(pick(f?.area))}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="3" class="center">-</td></tr>`;
+
+    // --- 부속지번 ---
+    const atchRows = data.atch.map(a => `
+      <tr>
+        <td>${escapeHtml(pick(a?.platPlc))}</td>
+        <td class="center">${escapeHtml(pick(a?.platGbCdNm || a?.platGbCd))}</td>
+        <td class="center">${escapeHtml(pick(a?.bun))}</td>
+        <td class="center">${escapeHtml(pick(a?.ji))}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="4" class="center">-</td></tr>`;
+
+    // --- 오수정화 ---
+    const wclfRows = data.wclf.map(w => `
+      <tr>
+        <td class="center">${escapeHtml(pick(w?.wclfGbCdNm || w?.wclfGbCd))}</td>
+        <td class="center">${escapeHtml(pick(w?.wclfNm || w?.wclfKndNm))}</td>
+        <td class="center">${escapeHtml(pick(w?.wclfCap || w?.wclfCapa))}</td>
+        <td class="center">${escapeHtml(pick(w?.wclfCnt))}</td>
+        <td>${escapeHtml(pick(w?.etc || w?.rm))}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="5" class="center">-</td></tr>`;
+
+    document.getElementById('result-container').innerHTML = `
+      <div class="form-a4">
+        <div class="top-meta">
+          <div>※ 건축물대장의 기재 및 관리 등에 관한 규칙 [별지 제8호서식] (총괄표제부 기준 출력)</div>
+          <div class="right">(Key) ${escapeHtml(keyLine)}</div>
+        </div>
+
+        <div class="form-title">건축물대장 총괄표제부(갑)</div>
+
+        <!-- 상단 요약(총괄표제부(갑) 기준) -->
+        <table class="form">
+          <colgroup>
+            <col style="width:12%"><col style="width:18%">
+            <col style="width:12%"><col style="width:18%">
+            <col style="width:12%"><col style="width:28%">
+          </colgroup>
+          <tr>
+            <td class="lbl center">건물ID</td>
+            <td>${escapeHtml(pick(pk))}</td>
+            <td class="lbl center">고유번호</td>
+            <td>${escapeHtml(pick(uniq))}</td>
+            <td class="lbl center">건축물명칭</td>
+            <td>${escapeHtml(pick(bldName))}</td>
+          </tr>
+          <tr>
+            <td class="lbl center">대지위치</td>
+            <td colspan="5">${escapeHtml(pick(platPlc))}</td>
+          </tr>
+          <tr>
+            <td class="lbl center">대지면적</td>
+            <td>${escapeHtml(platArea)}</td>
+            <td class="lbl center">연면적</td>
+            <td>${escapeHtml(totArea)}</td>
+            <td class="lbl center">지역</td>
+            <td>${escapeHtml(zone)}</td>
+          </tr>
+          <tr>
+            <td class="lbl center">건축면적</td>
+            <td>${escapeHtml(archArea)}</td>
+            <td class="lbl center">용적률 산정용 연면적</td>
+            <td>${escapeHtml(vlRatEstmTotArea)}</td>
+            <td class="lbl center">주용도</td>
+            <td>${escapeHtml(mainPurp)}</td>
+          </tr>
+          <tr>
+            <td class="lbl center">건폐율</td>
+            <td>${escapeHtml(bcRat)}</td>
+            <td class="lbl center">용적률</td>
+            <td>${escapeHtml(vlRat)}</td>
+            <td class="lbl center">높이</td>
+            <td>${escapeHtml(heit)}</td>
+          </tr>
+          <tr>
+            <td class="lbl center">건축물 수</td>
+            <td>${escapeHtml(pick(bldCnt))}</td>
+            <td class="lbl center">호수/가구수/세대수</td>
+            <td>${escapeHtml(pick(hhld))}</td>
+            <td class="lbl center">사용승인일</td>
+            <td>${escapeHtml(useApr)}</td>
+          </tr>
+          <tr>
+            <td class="lbl center">소유자 현황</td>
+            <td colspan="5">미제공(-) (본 OpenAPI 목록에 소유자 조회 항목 없음)</td>
+          </tr>
+        </table>
+
+        <!-- 지역지구구역 -->
+        <div class="section-head"><span>지역·지구·구역 (getBrJijiguInfo)</span></div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:55%"><col style="width:25%"><col style="width:20%">
+          </colgroup>
+          <tr>
+            <th class="center">명칭</th>
+            <th class="center">구분/코드</th>
+            <th class="center">비고</th>
+          </tr>
+          ${jijiguRows}
+        </table>
+
+        <!-- 건축물 현황(을): 표제부 item 전체 나열 -->
+        <div class="section-head">
+          <span>건축물 현황 (총괄표제부(을) 스타일) — getBrTitleInfo 전체</span>
+          <span class="small muted">※ 주/부 포함, bldNm(주1/부1 등) 기준 정렬</span>
+        </div>
+        <table class="form">
+          <colgroup>
+            <col style="width:6%">
+            <col style="width:14%">
+            <col style="width:19%">
+            <col style="width:12%">
+            <col style="width:10%">
+            <col style="width:7%">
+            <col style="width:12%">
+            <col style="width:10%">
+            <col style="width:10%">
+            <col style="width:10%">
+          </colgroup>
+          <tr>
+            <th class="center">구분</th>
+            <th class="center">건축물명칭(번호)</th>
+            <th class="center">도로명주소/대지위치</th>
+            <th class="center">건축물 주구조</th>
+            <th class="center">건축물 지붕</th>
+            <th class="center">층수</th>
+            <th class="center">용도</th>
+            <th class="center">연면적(㎡)</th>
+            <th class="center">변동일</th>
+            <th class="center">변동원인</th>
+          </tr>
+          ${titleRows}
+        </table>
+
+        <!-- 참고용: 층별개요/부속지번/전유공용/전유부/오수정화/주택가격 -->
+        <div class="section-head"><span>층별개요 (getBrFlrOulnInfo)</span><span class="small muted">정렬: 지하 → 지상</span></div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:26%"><col style="width:52%"><col style="width:22%">
+          </colgroup>
+          <tr>
+            <th class="center">층</th>
+            <th class="center">용도</th>
+            <th class="center">면적(㎡)</th>
+          </tr>
+          ${floorRows}
+        </table>
+
+        <div class="section-head"><span>부속지번 (getBrAtchJibunInfo)</span></div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:52%"><col style="width:16%"><col style="width:16%"><col style="width:16%">
+          </colgroup>
+          <tr>
+            <th class="center">주소</th>
+            <th class="center">대지구분</th>
+            <th class="center">번</th>
+            <th class="center">지</th>
+          </tr>
+          ${atchRows}
+        </table>
+
+        <div class="section-head">
+          <span>전유·공용면적 (getBrExposPubuseAreaInfo) — 합계: ${escapeHtml(pick(pubuseTot.toFixed(2)))}㎡</span>
+          <span class="filter-box">
+            <button class="fbtn ${pubuseFilter==='ALL'?'active':''}" data-pubuse-filter="ALL" onclick="setPubuseFilter('ALL')">전체</button>
+            <button class="fbtn ${pubuseFilter==='PRIVATE'?'active':''}" data-pubuse-filter="PRIVATE" onclick="setPubuseFilter('PRIVATE')">전유</button>
+            <button class="fbtn ${pubuseFilter==='PUBLIC'?'active':''}" data-pubuse-filter="PUBLIC" onclick="setPubuseFilter('PUBLIC')">공용</button>
+          </span>
+        </div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:18%"><col style="width:18%"><col style="width:40%"><col style="width:24%">
+          </colgroup>
+          <tr>
+            <th class="center">구분</th>
+            <th class="center">층</th>
+            <th class="center">용도</th>
+            <th class="center">면적(㎡)</th>
+          </tr>
+          ${pubuseRows}
+        </table>
+
+        <div class="section-head"><span>전유부 (getBrExposInfo)</span><span class="small muted">정렬: 107→1층, 1002→10층</span></div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:12%"><col style="width:16%"><col style="width:12%"><col style="width:38%"><col style="width:22%">
+          </colgroup>
+          <tr>
+            <th class="center">동</th>
+            <th class="center">호</th>
+            <th class="center">층(추정)</th>
+            <th class="center">용도</th>
+            <th class="center">면적(㎡)</th>
+          </tr>
+          ${exposRows}
+        </table>
+
+        <div class="section-head"><span>오수정화시설 (getBrWclfInfo)</span></div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:16%"><col style="width:26%"><col style="width:16%"><col style="width:12%"><col style="width:30%">
+          </colgroup>
+          <tr>
+            <th class="center">구분</th>
+            <th class="center">명칭/종류</th>
+            <th class="center">용량</th>
+            <th class="center">수량</th>
+            <th class="center">비고</th>
+          </tr>
+          ${wclfRows}
+        </table>
+
+        <div class="section-head"><span>주택가격 (getBrHsprcInfo)</span><span class="small muted">정렬: 기준일 오름차순 / 가격 콤마</span></div>
+        <table class="form" data-collapsible="1">
+          <colgroup>
+            <col style="width:22%"><col style="width:18%"><col style="width:30%"><col style="width:30%">
+          </colgroup>
+          <tr>
+            <th class="center">기준일</th>
+            <th class="center">면적(있으면)</th>
+            <th class="center">가격</th>
+            <th class="center">비고</th>
+          </tr>
+          ${hsprcRows}
+        </table>
+
+        <table class="form" style="margin-top:8px;">
+          <tr style="height:38px;">
+            <td class="small">
+              이 등(초)본은 건축물대장의 원본내용과 틀림없음을 증명합니다.
+              <span style="float:right;">발급일: ${escapeHtml(new Date().toISOString().slice(0,10))}</span>
+            </td>
+          </tr>
+          <tr style="height:38px;">
+            <td class="small">
+              담당자: ________  전 화: ________
+              <span style="float:right;">시장·군수·구청장 (인)</span>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+
+    window.scrollTo({top:0, behavior:'smooth'});
+    if(collapsed){
+      document.querySelectorAll('[data-collapsible="1"]').forEach(el=> el.style.display='none');
+    }
+  }
+</script>
 </body>
 </html>
